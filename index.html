@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vent">
+<meta name="theme-color" content="#0d1418">
+<title>Vent</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%230d1418'/%3E%3Ccircle cx='90' cy='90' r='62' fill='none' stroke='%2337c6b4' stroke-width='6'/%3E%3Cpath d='M90 34 L108 112 L90 100 L72 112 Z' fill='%23f2c14e'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0d1418; --panel:#151f25; --line:#24323a; --fg:#e6eef0; --dim:#8aa0a8;
+  --accent:#37c6b4; --warn:#f2c14e; --hot:#ef6b5b;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);-webkit-text-size-adjust:100%}
+body{padding:calc(env(safe-area-inset-top,0px) + 12px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 24px) max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0;font-weight:600}
+.row{display:flex;gap:8px}
+input,select,button{font:inherit;font-size:16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:11px 12px}
+input{flex:1;min-width:0;font-family:var(--mono);font-size:15px}
+button{cursor:pointer;white-space:nowrap}
+button.primary{background:var(--accent);color:#06221e;border-color:var(--accent);font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:13px;padding:6px 10px;border-radius:999px}
+.chip .x{color:var(--dim);margin-left:6px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.place{font-size:13px;color:var(--dim);font-family:var(--mono)}
+.main{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+@media (max-width:380px){.main{grid-template-columns:1fr;justify-items:center;text-align:center}}
+svg.rose{width:170px;height:170px}
+.big{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.big small{font-size:16px;color:var(--dim);font-weight:500;margin-left:4px}
+.from{font-size:20px;margin-top:6px}
+.from b{color:var(--warn)}
+.sub{color:var(--dim);font-size:14px;margin-top:8px;font-variant-numeric:tabular-nums}
+.status{font-size:14px;color:var(--dim);min-height:1.2em}
+.status.err{color:var(--hot)}
+.hours{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
+th,td{padding:6px 7px;text-align:center;white-space:nowrap}
+th{color:var(--dim);font-weight:500}
+td.lbl{text-align:left;color:var(--dim);position:sticky;left:0;background:var(--panel)}
+.day{color:var(--warn)}
+.arr{display:inline-block;font-size:16px}
+.foot{font-size:12px;color:var(--dim);line-height:1.5}
+.foot a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Vent · position</h1>
+
+  <div class="row">
+    <button class="primary" id="gps" type="button">📍 Ma position</button>
+    <select id="model" aria-label="Modèle météo">
+      <option value="best_match">Auto</option>
+      <option value="meteofrance_seamless">AROME / ARPEGE</option>
+      <option value="icon_seamless">ICON</option>
+      <option value="gfs_seamless">GFS</option>
+      <option value="ecmwf_ifs025">ECMWF</option>
+    </select>
+  </div>
+
+  <form class="row" id="f">
+    <input id="coord" inputmode="text" autocomplete="off" placeholder="37.0234, -7.8412  ou  37°01'N 7°50'W">
+    <button type="submit">OK</button>
+  </form>
+
+  <div class="chips" id="favs"></div>
+  <div class="status" id="status"></div>
+
+  <div class="panel" id="now" hidden>
+    <div class="place" id="place"></div>
+    <div class="main" style="margin-top:10px">
+      <svg class="rose" viewBox="-100 -100 200 200" aria-hidden="true">
+        <circle r="92" fill="none" stroke="var(--line)" stroke-width="2"/>
+        <g id="ticks"></g>
+        <text y="-70" text-anchor="middle" dominant-baseline="middle" fill="var(--fg)" font-size="15" font-weight="700">N</text>
+        <text x="72" text-anchor="middle" dominant-baseline="middle" fill="var(--dim)" font-size="13">E</text>
+        <text y="72" text-anchor="middle" dominant-baseline="middle" fill="var(--dim)" font-size="13">S</text>
+        <text x="-72" text-anchor="middle" dominant-baseline="middle" fill="var(--dim)" font-size="13">O</text>
+        <g id="needle" style="transition:transform .6s ease">
+          <!-- flèche dans le sens où le vent souffle (vers) ; queue = d'où il vient -->
+          <line x1="0" y1="-60" x2="0" y2="52" stroke="var(--warn)" stroke-width="5" stroke-linecap="round"/>
+          <path d="M0 64 L-14 38 L14 38 Z" fill="var(--warn)"/>
+          <circle cy="-60" r="7" fill="var(--accent)"/>
+        </g>
+      </svg>
+      <div>
+        <div class="big" id="spd">–<small>km/h</small></div>
+        <div class="from">du <b id="card">–</b> <span id="deg"></span></div>
+        <div class="sub" id="gust"></div>
+        <div class="sub" id="extra"></div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button type="button" id="save">☆ Ajouter aux favoris</button>
+    </div>
+  </div>
+
+  <div class="panel hours" id="fc" hidden>
+    <table id="tbl"></table>
+  </div>
+
+  <p class="foot">Données <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (mêmes modèles que Windguru : AROME, ICON, GFS, ECMWF). Vent à 10 m, km/h. Le point vert sur la rose = d'où vient le vent.</p>
+</div>
+
+<script>
+const CARD=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+const card=d=>CARD[Math.round(((d%360)+360)%360/22.5)%16];
+const $=id=>document.getElementById(id);
+let cur=null;
+
+// ticks rose
+(()=>{let s="";for(let i=0;i<36;i++){const a=i*10*Math.PI/180,r1=i%9===0?78:(i%3===0?84:88);
+s+=`<line x1="${(Math.sin(a)*r1).toFixed(1)}" y1="${(-Math.cos(a)*r1).toFixed(1)}" x2="${(Math.sin(a)*92).toFixed(1)}" y2="${(-Math.cos(a)*92).toFixed(1)}" stroke="var(--dim)" stroke-width="${i%9===0?2:1}"/>`;}
+$("ticks").innerHTML=s;})();
+
+function store(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}}
+
+function parseCoord(t){
+  t=t.trim().replace(/,/g," ").replace(/\s+/g," ");
+  // décimal : "37.02 -7.84"
+  let m=t.match(/^(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)$/);
+  if(m) return [+m[1],+m[2]];
+  // DMS / DM avec N S E W/O
+  const re=/(\d+(?:\.\d+)?)\s*[°º ]\s*(?:(\d+(?:\.\d+)?)\s*['′ ]?\s*)?(?:(\d+(?:\.\d+)?)\s*["″]?\s*)?([NSEWO])/gi;
+  const parts=[...t.matchAll(re)];
+  if(parts.length===2){
+    const v=p=>{let x=+p[1]+(+(p[2]||0))/60+(+(p[3]||0))/3600;return /[SWO]/i.test(p[4])?-x:x};
+    const a=parts.map(p=>({v:v(p),lat:/[NS]/i.test(p[4])}));
+    const lat=a.find(x=>x.lat),lon=a.find(x=>!x.lat);
+    if(lat&&lon) return [lat.v,lon.v];
+  }
+  return null;
+}
+
+function setStatus(t,err){const s=$("status");s.textContent=t||"";s.className="status"+(err?" err":"")}
+
+async function load(lat,lon,name){
+  cur={lat,lon,name};
+  setStatus("Chargement…");
+  const model=$("model").value;
+  const vars="wind_speed_10m,wind_direction_10m,wind_gusts_10m";
+  const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`+
+    `&current=${vars},temperature_2m&hourly=${vars}&wind_speed_unit=kmh&timezone=auto&forecast_days=3&models=${model}`;
+  try{
+    const r=await fetch(url);const j=await r.json();
+    if(j.error) throw new Error(j.reason||"erreur API");
+    render(j,lat,lon,name);setStatus("");
+    store("last",{lat,lon,name});
+  }catch(e){setStatus("Impossible de récupérer le vent : "+e.message+". Vérifie la connexion.",true)}
+}
+
+function color(k){return k<15?"var(--dim)":k<30?"var(--accent)":k<46?"var(--warn)":"var(--hot)"}
+
+function render(j,lat,lon,name){
+  const c=j.current,d=c.wind_direction_10m,s=c.wind_speed_10m,g=c.wind_gusts_10m;
+  $("now").hidden=false;
+  $("place").textContent=(name?name+" · ":"")+lat.toFixed(4)+", "+lon.toFixed(4)+" · "+c.time.slice(11,16)+" loc.";
+  $("spd").innerHTML=Math.round(s)+"<small>km/h</small>";
+  $("spd").style.color=color(s);
+  $("card").textContent=card(d);
+  $("deg").textContent=String(Math.round(d)).padStart(3,"0")+"°";
+  $("gust").textContent="Rafales "+Math.round(g)+" km/h · "+Math.round(s/1.852)+" kt";
+  $("extra").textContent="Temp. "+Math.round(c.temperature_2m)+" °C";
+  $("needle").style.transform=`rotate(${d+180}deg)`;
+
+  // prévision : à partir de l'heure courante, 1 colonne / 1 h sur 36 h
+  const h=j.hourly,now=c.time.slice(0,13);
+  let i0=h.time.findIndex(t=>t.slice(0,13)>=now);if(i0<0)i0=0;
+  const idx=[];for(let i=i0;i<Math.min(h.time.length,i0+36);i++)idx.push(i);
+  const jours=["dim","lun","mar","mer","jeu","ven","sam"];
+  let hr="<tr><td class='lbl'></td>",ar="<tr><td class='lbl'>Dir</td>",dr="<tr><td class='lbl'></td>",
+      sr="<tr><td class='lbl'>km/h</td>",gr="<tr><td class='lbl'>Raf.</td>";
+  idx.forEach(i=>{
+    const t=h.time[i],hh=t.slice(11,13),dd=h.wind_direction_10m[i],ss=h.wind_speed_10m[i],gg=h.wind_gusts_10m[i];
+    const day=hh==="00"||i===i0;
+    hr+=`<th class="${day?'day':''}">${day?jours[new Date(t).getDay()]+" ":""}${hh}h</th>`;
+    ar+=`<td><span class="arr" style="transform:rotate(${dd+180}deg);color:${color(ss)}">↑</span></td>`;
+    dr+=`<td style="color:var(--dim)">${card(dd)}</td>`;
+    sr+=`<td style="color:${color(ss)};font-weight:600">${Math.round(ss)}</td>`;
+    gr+=`<td style="color:var(--dim)">${Math.round(gg)}</td>`;
+  });
+  $("tbl").innerHTML=hr+"</tr>"+ar+"</tr>"+dr+"</tr>"+sr+"</tr>"+gr+"</tr>";
+  $("fc").hidden=false;
+}
+
+function favs(){return store("favs")||[{name:"Olhão",lat:37.0234,lon:-7.8412}]}
+function drawFavs(){
+  const box=$("favs");box.innerHTML="";
+  favs().forEach((f,k)=>{
+    const b=document.createElement("button");b.type="button";b.className="chip";
+    b.textContent=f.name;const x=document.createElement("span");x.className="x";x.textContent="×";b.appendChild(x);
+    b.onclick=e=>{if(e.target===x){const l=favs();l.splice(k,1);store("favs",l);drawFavs();return}load(f.lat,f.lon,f.name)};
+    box.appendChild(b);
+  });
+}
+
+$("gps").onclick=()=>{
+  if(!navigator.geolocation){setStatus("Géolocalisation non disponible.",true);return}
+  setStatus("Recherche GPS…");
+  navigator.geolocation.getCurrentPosition(
+    p=>load(p.coords.latitude,p.coords.longitude,"Ma position"),
+    e=>setStatus("GPS refusé ou indisponible ("+e.message+"). Autorise la localisation pour Safari dans Réglages.",true),
+    {enableHighAccuracy:true,timeout:15000,maximumAge:60000});
+};
+$("f").onsubmit=e=>{e.preventDefault();const c=parseCoord($("coord").value);
+  if(!c||Math.abs(c[0])>90||Math.abs(c[1])>180){setStatus("Format non reconnu. Exemple : 37.0234, -7.8412",true);return}
+  load(c[0],c[1],"");};
+$("model").onchange=()=>{store("model",$("model").value);if(cur)load(cur.lat,cur.lon,cur.name)};
+$("save").onclick=()=>{
+  if(!cur)return;const nm=(cur.name&&cur.name!=="Ma position")?cur.name:"Spot "+(favs().length+1);
+  const l=favs();l.push({name:nm,lat:cur.lat,lon:cur.lon});store("favs",l);drawFavs();setStatus("Ajouté : "+nm);
+};
+
+const m=store("model");if(m)$("model").value=m;
+drawFavs();
+const last=store("last");if(last)load(last.lat,last.lon,last.name);
+</script>
+</body>
+</html>
